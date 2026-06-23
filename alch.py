@@ -1,50 +1,105 @@
-from sqlite3 import connect
-
+import sqlalchemy
 from sqlalchemy import create_engine
-from sqlalchemy import MetaData, Table, Column, Integer, String
-from sqlalchemy import insert, select
-from sqlalchemy import update, delete
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import ForeignKey, MetaData, Table, Column, Integer, String, func
+from datetime import datetime
+from sqlalchemy.orm import session,sessionmaker
+from sqlalchemy.orm import relationship
+engine = create_engine(
+    'sqlite:///library.db', echo=True
+)
 
-engine = create_engine('sqlite:///library.db', echo=True)
+Base = declarative_base()
 
-conn = engine.connect()
+#------------------------------------------------------------------------------------------------------------------------------------------------    
+class Author(Base):
+    __tablename__ = 'authors'
 
-metadata = MetaData()
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    birth_year = Column(Integer)
+    books = relationship('Book', back_populates='author')
+#------------------------------------------------------------------------------------------------------------------------------------------------    
+class Book(Base):
+    __tablename__ = 'books'
 
-Author = Table('authors', metadata,
-              Column('id', Integer, primary_key=True),
-              Column('name', String(200), nullable=False),
-              Column('birth_day', Integer, nullable=False))
+    id = Column(Integer, primary_key=True)
+    title = Column(String(100), nullable=False)
+    year = Column (Integer)
+    author_id = Column(Integer, ForeignKey('authors.id'))
+    author = relationship('Author', back_populates='books')
+#------------------------------------------------------------------------------------------------------------------------------------------------
+Session = sessionmaker(bind=engine)
+session = Session()
 
-Book = Table('books', metadata,
-                Column('id', Integer, primary_key=True),
-                Column('title', String, nullable=False),
-                Column('year', Integer, nullable=False),
-                Column('author_id', Integer, nullable=False))
+auth1 = Author(name='Пушкин', birth_year = 1837)
+auth2 = Author(name='есенин', birth_year = 1914)
+auth3 = Author(name='толстый', birth_year = 1828)
 
-metadata.create_all(engine)
+book1 = Book(title='Книга есенина', year=1967, author = auth2)
+book2 = Book(title='Книга толстого', year=1942, author = auth3)
+book3 = Book(title='Книга толстого2', year=1676, author = auth3)
+book4 = Book(title='Книга есенина2', year=1422, author = auth2)
+book5 = Book(title='Книга пушкина', year=1111, author = auth1)
 
-ins = Author.insert().values([
-    {'name': 'Пушкин', 'birth_day': 1799},
-    {'name': 'Гоголь', 'birth_day': 1809},
-    {'name': 'Лермонтов', 'birth_day': 1814}
-])
+session.add_all([auth1, auth2, auth3, book1, book2, book3, book4, book5])
+session.commit()
 
-ins = Book.insert().values([
-    {'title': 'Евгений Онегин', 'year': 1833, 'author_id': 1},
-    {'title': 'Мертвые души', 'year': 1842, 'author_id': 2},
-    {'title': 'Герой нашего времени', 'year': 1840, 'author_id': 3},
-    {'title': 'Капитанская дочка', 'year': 1836, 'author_id': 1},
-    {'title': 'Ревизор', 'year': 1836, 'author_id': 2}
-])
+#------------------------------------------------------------------------------------------------------------------------------------------------
+print("-----------------------------------------------------------------")
+authors = session.query(Author).all()
+for a in authors:
+    print(a.name)
+print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+authors = session.query(Author).get(1)
+authors.name = "поэт какойто"
+session.commit()
+authors = session.query(Author).all()
+for a in authors:
+    print("-----------------------------------------------------------------")
+    print(a.name)
+    print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+book = session.query(Book).get(4)
+session.delete(book)
+session.commit()
+books_all = session.query(Book).all()
+for b in books_all:
+    print("-----------------------------------------------------------------")
+    print(b.title)
+    print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+b = session.query(Book).order_by(Book.year.desc()).all()
+for a in b:
+    print("-----------------------------------------------------------------")
+    print(a.title, a.year)
+    print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+b = session.query(Book).filter(Book.year > 1950).all()
+for a in b:
+    print("-----------------------------------------------------------------")
+    print(a.title, a.year)
+    print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+avt = session.query(Author).filter(Author.name=='толстый').first()
+if avt:
+    print("-----------------------------------------------------------------")
+    print(avt.name, avt.birth_year)
+    print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+funct = session.query(func.count(Book.id)).scalar()
+print("-----------------------------------------------------------------")
+print(funct)
+print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+por = session.query(Book).order_by(Book.title).limit(3).all()
+for b in por:
+    print("-----------------------------------------------------------------")
+    print(b.title, b.year)
+    print("-----------------------------------------------------------------")
+#------------------------------------------------------------------------------------------------------------------------------------------------
+session.close()
 
-s = Author.select()
-result = conn.execute(s)
-for row in result:
-    print(row)
-
-upd = Author.update().where(
-    Author.c.name == 'Пушкин'
-).values(name='Александр Пушкин')
-result = conn.execute(upd)
-print(result.rowcount)
+Base.metadata.drop_all(engine)  
+Base.metadata.create_all(engine)
